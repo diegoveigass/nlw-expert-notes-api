@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client'
 
 import fastify from 'fastify'
 import { Webhook } from 'svix'
+import { env } from './env'
+import { z } from 'zod'
 
 export const app = fastify()
 
@@ -61,9 +63,65 @@ app.post('/api/webhooks', async (req, res) => {
   console.log(`Webhook with an ID of ${id} and type of ${eventType}`)
   console.log('Webhook body:', evt.data)
 
+  if (eventType === 'user.created') {
+    const user = await prisma.user.findFirst({
+      where: {
+        clerk_id: evt.data.id,
+      },
+    })
+
+    if (!user) {
+      await prisma.user.create({
+        data: {
+          clerk_id: evt.data.id,
+          name: evt.data?.name,
+          username: evt.data.username,
+        },
+      })
+
+      return res.status(201).send({
+        success: true,
+        message: 'User created successfully',
+      })
+    }
+  }
+
   return res.status(200).send({
     success: true,
     message: 'Webhook received',
+  })
+})
+
+app.post('/notes', async (request, reply) => {
+  const createNoteBodySchema = z.object({
+    date: z.string(),
+    content: z.string(),
+    clerkUserId: z.string(),
+  })
+
+  const { date, clerkUserId, content } = createNoteBodySchema.parse(
+    request.body,
+  )
+
+  const user = await prisma.user.findFirst({
+    where: {
+      clerk_id: clerkUserId,
+    },
+  })
+
+  if (!user) return
+
+  await prisma.note.create({
+    data: {
+      content,
+      created_at: date,
+      user_id: user.id,
+    },
+  })
+
+  return reply.status(201).send({
+    success: true,
+    message: 'Note created successfully',
   })
 })
 
