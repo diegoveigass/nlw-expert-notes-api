@@ -7,7 +7,9 @@ import { z } from 'zod'
 
 export const app = fastify()
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+})
 
 app.post('/api/webhooks', async (req, res) => {
   const WEBHOOK_SECRET = env.WEBHOOK_SECRET
@@ -125,25 +127,31 @@ app.post('/notes', async (request, reply) => {
   })
 })
 
-// app.post('/users', async (request, reply) => {
-//   console.log(request.body)
-//   // const registerBodySchema = z.object({
-//   //   name: z.string().nullable(),
-//   //   clerkId: z.string(),
-//   //   username: z.string(),
-//   //   email: z.string().email().nullable(),
-//   // })
+app.post('/note', async (request, reply) => {
+  const getNotesBodySchema = z.object({
+    clerkUserId: z.string(),
+  })
 
-//   // const { name, clerkId, email, username } = registerBodySchema.parse(
-//   //   request.body,
-//   // )
+  const { clerkUserId } = getNotesBodySchema.parse(request.body)
 
-//   // await prisma.user.create({
-//   //   data: {
-//   //     clerk_id: clerkId,
-//   //     email,
-//   //     username,
-//   //     name,
-//   //   },
-//   // })
-// })
+  const user = await prisma.user.findFirst({
+    where: {
+      clerk_id: clerkUserId,
+    },
+  })
+
+  if (!user) return
+
+  const notes = await prisma.note.findMany({
+    select: {
+      content: true,
+      id: true,
+      created_at: true,
+    },
+    where: {
+      user_id: user.id,
+    },
+  })
+
+  reply.code(200).send(notes)
+})
