@@ -153,5 +153,25 @@ app.post('/note', async (request, reply) => {
     },
   })
 
-  reply.code(200).send(notes)
+  return reply.code(200).send(notes)
+})
+
+app.delete('/note/:id', async (request, reply) => {
+  const deleteNoteParams = z.object({
+    id: z.string(),
+  })
+
+  const { id } = deleteNoteParams.parse(request.params)
+
+  try {
+    await prisma.note.delete({
+      where: {
+        id,
+      },
+    })
+  } catch (error) {
+    console.error(error)
+  }
+
+  return reply.code(200).send()
 })
